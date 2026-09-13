@@ -5,8 +5,6 @@ import os
 
 
 def setup_logger():
-    """Create logger that writes to both file and console"""
-
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     log_dir = os.path.join(base_dir, "logs")
     os.makedirs(log_dir, exist_ok=True)
@@ -18,20 +16,17 @@ def setup_logger():
     if logger.handlers:
         return logger
 
-    file_handler = logging.FileHandler(log_file, encoding="utf-8")
-    file_handler.setLevel(logging.DEBUG)
-    file_format = logging.Formatter(
+    fh = logging.FileHandler(log_file, encoding="utf-8")
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(logging.Formatter(
         "%(asctime)s | %(levelname)-8s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
-    )
-    file_handler.setFormatter(file_format)
+    ))
 
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.WARNING)
-    console_format = logging.Formatter("[%(levelname)s] %(message)s")
-    console_handler.setFormatter(console_format)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.WARNING)
+    ch.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
 
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
-
+    logger.addHandler(fh)
+    logger.addHandler(ch)
     return logger
