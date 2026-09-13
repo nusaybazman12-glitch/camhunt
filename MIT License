@@ -1,0 +1,9 @@
+
+---
+
+## 🎯 এখন যা করবেন
+
+### ১. ফোল্ডার তৈরি করুন
+```bash
+mkdir CamHunt && cd CamHunt
+mkdir modules logs
