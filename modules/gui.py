@@ -1,5 +1,5 @@
-"""CamHunt v2.0 - CLI Interface (Termux-friendly, no GUI needed)"""
-
+cat > ~/camhunt/modules/gui.py << 'ENDOFFILE'
+"""CamHunt v2.0 - CLI Interface (Termux-friendly)"""
 import os
 import sys
 from modules.network_scanner import NetworkScanner
@@ -40,10 +40,8 @@ class CamHuntCLI:
         print("\n" + "-" * 70)
         print("  [*] Your Network Info")
         print("-" * 70)
-
         if not self.network_info:
             self.network_info = self.scanner.get_my_network()
-
         if self.network_info:
             print(f"  [SSID]    : {self.network_info['ssid']}")
             print(f"  [Your IP] : {self.network_info['local_ip']}")
@@ -51,7 +49,6 @@ class CamHuntCLI:
             print(f"  [Gateway] : {self.network_info['gateway']}")
         else:
             print("  [!] Network info unavailable")
-
         print("-" * 70)
 
     def menu(self):
@@ -71,10 +68,9 @@ class CamHuntCLI:
     def pause(self):
         input("\n  [Enter] to continue...")
 
-    def do_scan(self, analyze=True):
+    def do_scan(self):
         if not self.network_info:
             self.network_info = self.scanner.get_my_network()
-
         if not self.network_info:
             print("  [X] Cannot determine network.")
             return
@@ -88,6 +84,7 @@ class CamHuntCLI:
             return
 
         print(f"  [OK] Found {len(devices)} device(s). Analyzing...\n")
+
         analysis = []
         for d in devices:
             r = self.detector.analyze(d["ip"], d["mac"], self.fingerprint)
@@ -98,21 +95,18 @@ class CamHuntCLI:
         print("  +----+-----------------+-------------------+-----------------+---------+")
         print("  | #  | IP Address      | MAC Address       | Type            | Risk    |")
         print("  +----+-----------------+-------------------+-----------------+---------+")
-
         for i, a in enumerate(analysis, 1):
-            print(f"  | {i:<2} | {a['ip']:<15} | {a['mac']:<17} | "
-                  f"{a['device_type'][:15]:<15} | "
-                  f"{a['risk_level']:<7} |")
-
+            dev_type = a['device_type'][:15]
+            print(f"  | {i:<2} | {a['ip']:<15} | {a['mac']:<17} | {dev_type:<15} | {a['risk_level']:<7} |")
         print("  +----+-----------------+-------------------+-----------------+---------+")
 
     def do_camera_detect(self):
         if not self.analysis:
-            print("  [!] Run option 1 first to scan.")
+            print("  [!] Run option 1 first.")
             return
 
         cams = [a for a in self.analysis if a["risk_level"] in ("HIGH", "MEDIUM")]
-        print(f"\n  [*] Camera Detection Results")
+        print("\n  [*] Camera Detection Results")
         print("-" * 70)
 
         if not cams:
@@ -134,7 +128,7 @@ class CamHuntCLI:
 
     def do_block(self):
         if not self.analysis:
-            print("  [!] Run scan first (option 1).")
+            print("  [!] Run scan first.")
             return
 
         print("\n  [*] Devices from last scan:")
@@ -166,12 +160,12 @@ class CamHuntCLI:
                 print(f"  {i}. {ip}")
 
     def do_view_log(self):
-        log_file = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "logs", "camhunt.log"
-        )
-        print(f"\n  [*] Activity Log (last 40 lines)")
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        log_file = os.path.join(base, "logs", "camhunt.log")
+
+        print("\n  [*] Activity Log (last 40 lines)")
         print("-" * 70)
+
         if os.path.exists(log_file):
             with open(log_file, "r", encoding="utf-8") as f:
                 lines = f.readlines()[-40:]
@@ -184,11 +178,12 @@ class CamHuntCLI:
         if not self.analysis:
             print("  [!] Run scan first.")
             return
+
         from datetime import datetime
         data = {
             "network": self.network_info,
             "devices": self.analysis,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now().isoformat()
         }
         j = self.reporter.export_json(data)
         t = self.reporter.export_txt(data)
@@ -204,7 +199,6 @@ class CamHuntCLI:
         self.clear()
         self.banner()
         self.show_network()
-
         print("\n  [!] Legal Notice: Use ONLY on your own network.")
         self.pause()
 
@@ -243,3 +237,5 @@ class CamHuntCLI:
             else:
                 print("\n  [X] Invalid choice (1-8).")
                 self.pause()
+ENDOFFILE
+echo "DONE: gui.py updated"
