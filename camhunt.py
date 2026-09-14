@@ -1,13 +1,6 @@
+cat > ~/camhunt/camhunt.py << 'ENDOFFILE'
 #!/usr/bin/env python3
-"""
-CamHunt v2.0 CLI - Hidden Camera Detector & Network Security Tool
-Termux-friendly (no GUI / no X11 required)
-
-Usage:
-    python camhunt.py
-    sudo python camhunt.py    (for IP blocking)
-"""
-
+"""CamHunt v2.0 CLI - Termux-friendly"""
 import sys
 import os
 
@@ -19,15 +12,11 @@ from modules.logger import setup_logger
 
 def main():
     logger = setup_logger()
-    logger.info("=" * 60)
     logger.info("CamHunt v2.0 CLI starting...")
-    logger.info("=" * 60)
-
     try:
         app = CamHuntCLI(logger)
         app.run()
     except KeyboardInterrupt:
-        logger.warning("User interrupted")
         print("\n[!] CamHunt stopped.")
     except Exception as e:
         logger.error(f"Fatal error: {e}")
@@ -37,3 +26,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+ENDOFFILE
+echo "DONE: camhunt.py updated"
