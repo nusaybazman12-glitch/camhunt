@@ -1,5 +1,6 @@
-cat > ~/camhunt/modules/gui.py << 'ENDOFFILE'
-"""CamHunt v2.0 - CLI Interface (Termux-friendly)"""
+cd ~/camhunt && cat > modules/gui.py << 'EOF'
+"""CamHunt v2.0 - CLI Interface (Termux friendly)"""
+
 import os
 import sys
 from modules.network_scanner import NetworkScanner
@@ -24,49 +25,34 @@ class CamHuntCLI:
         os.system("clear")
 
     def banner(self):
-        print("=" * 70)
-        print("  ██████╗ █████╗ ███╗   ███╗██╗  ██╗██╗   ██╗███╗   ██╗████████╗")
-        print(" ██╔════╝██╔══██╗████╗ ████║██║  ██║██║   ██║████╗  ██║╚══██╔══╝")
-        print(" ██║     ███████║██╔████╔██║███████║██║   ██║██╔██╗ ██║   ██║   ")
-        print(" ██║     ██╔══██║██║╚██╔╝██║██╔══██║██║   ██║██║╚██╗██║   ██║   ")
-        print(" ╚██████╗██║  ██║██║ ╚═╝ ██║██║  ██║╚██████╔╝██║ ╚████║   ██║   ")
-        print("  ╚═════╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝   ")
-        print("=" * 70)
-        print("       Hidden Camera Detector & Network Security Tool")
-        print("                    Version 2.0.0 (CLI)")
-        print("=" * 70)
+        print("=" * 66)
+        print("   CamHunt v2.0 - Hidden Camera Detector")
+        print("=" * 66)
 
     def show_network(self):
-        print("\n" + "-" * 70)
-        print("  [*] Your Network Info")
-        print("-" * 70)
         if not self.network_info:
             self.network_info = self.scanner.get_my_network()
+        print("\n--- Network Info ---")
         if self.network_info:
-            print(f"  [SSID]    : {self.network_info['ssid']}")
-            print(f"  [Your IP] : {self.network_info['local_ip']}")
-            print(f"  [Range]   : {self.network_info['network_range']}")
-            print(f"  [Gateway] : {self.network_info['gateway']}")
+            print(f"SSID   : {self.network_info['ssid']}")
+            print(f"IP     : {self.network_info['local_ip']}")
+            print(f"Range  : {self.network_info['network_range']}")
         else:
-            print("  [!] Network info unavailable")
-        print("-" * 70)
+            print("Network unavailable")
 
     def menu(self):
-        print("\n  +-----------------------------------------------+")
-        print("  |              MAIN MENU                        |")
-        print("  +-----------------------------------------------+")
-        print("  |  1. Scan network (show all devices)           |")
-        print("  |  2. Detect hidden cameras                     |")
-        print("  |  3. Block an IP address                       |")
-        print("  |  4. Show blocked IPs                          |")
-        print("  |  5. View activity log                         |")
-        print("  |  6. Export report (JSON + TXT)                |")
-        print("  |  7. Refresh network info                      |")
-        print("  |  8. Exit                                      |")
-        print("  +-----------------------------------------------+")
+        print("\n--- MENU ---")
+        print("1. Scan network")
+        print("2. Detect cameras")
+        print("3. Block IP")
+        print("4. Show blocked")
+        print("5. View log")
+        print("6. Export report")
+        print("7. Refresh")
+        print("8. Exit")
 
     def pause(self):
-        input("\n  [Enter] to continue...")
+        input("\n[Enter] to continue...")
 
     def do_scan(self):
         if not self.network_info:
@@ -97,8 +83,10 @@ class CamHuntCLI:
         print("  +----+-----------------+-------------------+-----------------+---------+")
         for i, a in enumerate(analysis, 1):
             dev_type = a['device_type'][:15]
-            print(f"  | {i:<2} | {a['ip']:<15} | {a['mac']:<17} | {dev_type:<15} | {a['risk_level']:<7} |")
+            mac = a['mac'][:17]
+            print(f"  | {i:<2} | {a['ip']:<15} | {mac:<17} | {dev_type:<15} | {a['risk_level']:<7} |")
         print("  +----+-----------------+-------------------+-----------------+---------+")
+        print(f"\n  [i] Total: {len(analysis)} device(s) on your network")
 
     def do_camera_detect(self):
         if not self.analysis:
@@ -107,7 +95,7 @@ class CamHuntCLI:
 
         cams = [a for a in self.analysis if a["risk_level"] in ("HIGH", "MEDIUM")]
         print("\n  [*] Camera Detection Results")
-        print("-" * 70)
+        print("-" * 66)
 
         if not cams:
             print("  [OK] No suspicious cameras detected.")
@@ -151,7 +139,7 @@ class CamHuntCLI:
 
     def do_blocked_list(self):
         print("\n  [*] Blocked IPs")
-        print("-" * 70)
+        print("-" * 66)
         blocked = self.blocker.get_blocked_list()
         if not blocked:
             print("  (none)")
@@ -164,7 +152,7 @@ class CamHuntCLI:
         log_file = os.path.join(base, "logs", "camhunt.log")
 
         print("\n  [*] Activity Log (last 40 lines)")
-        print("-" * 70)
+        print("-" * 66)
 
         if os.path.exists(log_file):
             with open(log_file, "r", encoding="utf-8") as f:
@@ -199,7 +187,7 @@ class CamHuntCLI:
         self.clear()
         self.banner()
         self.show_network()
-        print("\n  [!] Legal Notice: Use ONLY on your own network.")
+        print("\n  [!] Use ONLY on your own network.")
         self.pause()
 
         while True:
@@ -237,5 +225,5 @@ class CamHuntCLI:
             else:
                 print("\n  [X] Invalid choice (1-8).")
                 self.pause()
-ENDOFFILE
+EOF
 echo "DONE: gui.py updated"
