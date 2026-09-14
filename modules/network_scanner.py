@@ -1,4 +1,5 @@
-"""Network scanner"""
+cd ~/camhunt && cat > modules/network_scanner.py << 'EOF'
+"""Network scanner - Termux optimized"""
 
 import subprocess
 import socket
@@ -6,12 +7,17 @@ import json
 import platform
 import os
 import re
+import threading
 
-try:
-    from scapy.all import ARP, Ether, srp
-    SCAPY_AVAILABLE = True
-except ImportError:
-    SCAPY_AVAILABLE = False
+IS_TERMUX = os.path.exists("/data/data/com.termux")
+SCAPY_AVAILABLE = False
+
+if not IS_TERMUX:
+    try:
+        from scapy.all import ARP, Ether, srp
+        SCAPY_AVAILABLE = True
+    except ImportError:
+        pass
 
 
 class NetworkScanner:
@@ -23,12 +29,10 @@ class NetworkScanner:
             local_ip = self._get_local_ip()
             if not local_ip:
                 return None
-
             parts = local_ip.split(".")
             network_range = f"{parts[0]}.{parts[1]}.{parts[2]}.0/24"
             gateway = f"{parts[0]}.{parts[1]}.{parts[2]}.1"
             ssid = self._get_wifi_ssid()
-
             return {
                 "ssid": ssid,
                 "local_ip": local_ip,
@@ -54,9 +58,7 @@ class NetworkScanner:
                 return None
 
     def _get_wifi_ssid(self):
-        os_type = platform.system()
-
-        if os.path.exists("/data/data/com.termux"):
+        if IS_TERMUX:
             try:
                 r = subprocess.run(["termux-wifi-connectioninfo"],
                                    capture_output=True, text=True, timeout=5)
@@ -68,17 +70,7 @@ class NetworkScanner:
             except Exception:
                 pass
 
-            try:
-                r = subprocess.run("dumpsys wifi | grep SSID",
-                                   capture_output=True, text=True,
-                                   timeout=5, shell=True)
-                for line in r.stdout.split("\n"):
-                    m = re.search(r'SSID:\s*"?([^",]+)"?', line)
-                    if m and m.group(1).strip() not in ("", "<unknown ssid>"):
-                        return m.group(1).strip()
-            except Exception:
-                pass
-
+        os_type = platform.system()
         if os_type == "Linux":
             for cmd in [["nmcli", "-t", "-f", "active,ssid", "dev", "wifi"],
                         ["iwgetid", "-r"]]:
@@ -93,41 +85,29 @@ class NetworkScanner:
                             return r.stdout.strip()
                 except Exception:
                     continue
-
-        if os_type == "Darwin":
-            try:
-                r = subprocess.run(
-                    ["/System/Library/PrivateFrameworks/Apple80211.framework/"
-                     "Versions/Current/Resources/airport", "-I"],
-                    capture_output=True, text=True, timeout=5)
-                for line in r.stdout.split("\n"):
-                    if " SSID:" in line:
-                        return line.split("SSID:")[1].strip()
-            except Exception:
-                pass
-
         if os_type == "Windows":
             try:
                 r = subprocess.run(["netsh", "wlan", "show", "interfaces"],
-                                   capture_output=True, text=True,
-                                   timeout=5, shell=True)
+                                   capture_output=True, text=True, timeout=5, shell=True)
                 for line in r.stdout.split("\n"):
                     if "SSID" in line and "BSSID" not in line:
                         return line.split(":", 1)[1].strip()
             except Exception:
                 pass
-
         return "Unknown"
 
     def scan(self, network_range, timeout=4):
         self.logger.info(f"Scanning: {network_range}")
+        devices = []
+
+        self._ping_sweep(network_range)
 
         if SCAPY_AVAILABLE:
             devices = self._scapy_scan(network_range, timeout)
             if devices:
                 return devices
 
-        devices = self._nmap_scan(network_range)
+        devices = self._arp_cmd_scan()
         if devices:
             return devices
 
@@ -135,7 +115,34 @@ class NetworkScanner:
         if devices:
             return devices
 
+        devices = self._nmap_scan(network_range)
+        if devices:
+            return devices
+
         return []
+
+    def _ping_sweep(self, network_range):
+        parts = network_range.split("/")[0].split(".")
+        prefix = ".".join(parts[:3])
+        print(f"  [*] Ping sweep on {prefix}.1-254...")
+        self.logger.info(f"Ping sweep: {prefix}.x")
+
+        threads = []
+        for i in range(1, 255):
+            ip = f"{prefix}.{i}"
+            t = threading.Thread(target=self._ping_one, args=(ip,), daemon=True)
+            t.start()
+            threads.append(t)
+
+        for t in threads:
+            t.join(timeout=0.05)
+
+    def _ping_one(self, ip):
+        try:
+            subprocess.run(["ping", "-c", "1", "-W", "1", ip],
+                           capture_output=True, timeout=2)
+        except Exception:
+            pass
 
     def _scapy_scan(self, network_range, timeout):
         devices = []
@@ -149,9 +156,53 @@ class NetworkScanner:
                     "mac": recv.hwsrc.upper(),
                     "hostname": self._get_hostname(recv.psrc)
                 })
-            self.logger.info(f"scapy: {len(devices)} devices")
+        except Exception:
+            pass
+        return devices
+
+    def _arp_cmd_scan(self):
+        """Use 'arp -a' command"""
+        devices = []
+        try:
+            r = subprocess.run(["arp", "-a"], capture_output=True,
+                               text=True, timeout=10)
+            for line in r.stdout.split("\n"):
+                m = re.search(
+                    r"\(?(\d+\.\d+\.\d+\.\d+)\)?\s+(?:at\s+)?([0-9a-fA-F:]{17})",
+                    line
+                )
+                if m:
+                    ip, mac = m.groups()
+                    mac = mac.upper()
+                    if mac != "00:00:00:00:00:00":
+                        devices.append({
+                            "ip": ip,
+                            "mac": mac,
+                            "hostname": self._get_hostname(ip)
+                        })
+            self.logger.info(f"arp -a: {len(devices)} devices")
+        except FileNotFoundError:
+            pass
         except Exception as e:
-            self.logger.warning(f"scapy failed: {e}")
+            self.logger.warning(f"arp -a failed: {e}")
+        return devices
+
+    def _proc_arp_scan(self):
+        devices = []
+        try:
+            with open("/proc/net/arp", "r") as f:
+                lines = f.readlines()[1:]
+            for line in lines:
+                p = line.split()
+                if len(p) >= 4 and p[3] != "00:00:00:00:00:00":
+                    devices.append({
+                        "ip": p[0],
+                        "mac": p[3].upper(),
+                        "hostname": self._get_hostname(p[0])
+                    })
+            self.logger.info(f"arp table: {len(devices)} devices")
+        except Exception as e:
+            self.logger.warning(f"arp read failed: {e}")
         return devices
 
     def _nmap_scan(self, network_range):
@@ -159,9 +210,11 @@ class NetworkScanner:
         try:
             r = subprocess.run(["nmap", "-sn", "-n", network_range],
                                capture_output=True, text=True, timeout=120)
+            if r.returncode != 0:
+                return []
+
             current_ip = None
             current_host = None
-
             for line in r.stdout.split("\n"):
                 line = line.strip()
                 if "Nmap scan report for" in line:
@@ -184,26 +237,10 @@ class NetworkScanner:
                     e = m.group(1).strip()
                     ip = e.split("(")[1].strip(")") if "(" in e else e
                     if not any(d["ip"] == ip for d in devices):
-                        devices.append({"ip": ip, "mac": "N/A", "hostname": "Unknown"})
-            self.logger.info(f"nmap: {len(devices)} devices")
-        except FileNotFoundError:
-            self.logger.warning("nmap not installed")
+                        devices.append({"ip": ip, "mac": "N/A",
+                                        "hostname": "Unknown"})
         except Exception as e:
             self.logger.warning(f"nmap failed: {e}")
-        return devices
-
-    def _proc_arp_scan(self):
-        devices = []
-        try:
-            with open("/proc/net/arp", "r") as f:
-                lines = f.readlines()[1:]
-            for line in lines:
-                p = line.split()
-                if len(p) >= 4 and p[3] != "00:00:00:00:00:00":
-                    devices.append({"ip": p[0], "mac": p[3].upper(),
-                                    "hostname": "Unknown"})
-        except Exception:
-            pass
         return devices
 
     def _get_hostname(self, ip):
@@ -211,3 +248,5 @@ class NetworkScanner:
             return socket.gethostbyaddr(ip)[0]
         except Exception:
             return "Unknown"
+EOF
+echo "DONE: network_scanner.py updated"
